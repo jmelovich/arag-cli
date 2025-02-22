@@ -4,17 +4,11 @@ import shlex
 import os
 import shutil
 
-from tools.corpify import corpify, isCorpified
+from tools.corpus import corpify, isCorpified
 from tools.arag_ops import add, create, delete, listContents
+from tools.index import index
 
 import globals
-
-# Define the content subdirectory globally
-# CONTENT_SUBDIR = 'content'
-# CONTENT_LIST = 'content_list.txt'
-# CORPUS_SUBDIR = 'corpus'
-# CORPUS_LIST = 'corpus_list.txt'
-# INDEX_SUBDIR = 'index'
 
 
 def main():
@@ -48,11 +42,14 @@ def main():
     # 'index' subcommand
     index_parser = subparsers.add_parser('index', help="Generate the index in the .arag file")
     index_parser.add_argument('--arag', help="Path to the .arag file")
+    index_parser.add_argument('--method', choices=['openai', 'local'], default='local', help="Embedding generation method")
+    index_parser.add_argument('--model', help="Embedding model name")
+    index_parser.add_argument('--api-key', help="OpenAI API key")
 
     # 'corpify' subcommand
     corpify_parser = subparsers.add_parser('corpify', help="Corpify the .arag file")
     corpify_parser.add_argument('--arag', help="Path to the .arag file")
-    corpify_parser.add_argument('--chunk-size', type=int, default=1024*128, help="Chunk size in bytes")
+    corpify_parser.add_argument('--chunk-size', type=int, default=1024*32, help="Chunk size in bytes")
     corpify_parser.add_argument('--force', action='store_true', help="Force removal of existing corpus folder")
 
     # If no arguments are provided, print help and exit
@@ -132,14 +129,8 @@ def execute_command(args, active_arag=None):
         if not os.path.isdir(arag_path):
             print(f"Arag {arag_path} does not exist or is not a directory")
             return
-        content_path = os.path.join(arag_path, globals.CONTENT_SUBDIR)
-        contents = os.listdir(content_path)
-        index_path = os.path.join(arag_path, 'index.txt')
-        #placeholder for index, will use FAISS probably
-        with open(index_path, 'w') as index_file:
-            for item in contents:
-                index_file.write(item + '\n')
-        print(f"Generated index at {index_path}")
+        options = {'method': args.method, 'model': args.model, 'api_key': args.api_key}
+        index(arag_path, options)
     elif args.subcommand == 'corpify':
         arag_path = args.arag if args.arag else active_arag
         if arag_path is None:
