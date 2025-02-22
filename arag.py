@@ -151,9 +151,13 @@ def execute_command(args, active_arag=None):
         elif args.subcommand == 'clean':
             clean(arag_path)
     elif args.subcommand == 'package':
-        arag_path = args.arag
-        if arag_path is None:
-            print("Error: --arag is required")
+        # Use provided --arag or active_arag if in interactive mode and it's a directory
+        if args.arag:
+            arag_path = args.arag
+        elif active_arag and os.path.isdir(active_arag):
+            arag_path = active_arag
+        else:
+            print("Error: --arag is required or open a directory arag first")
             return
         if not os.path.isdir(arag_path):
             print(f"{arag_path} is not a directory")

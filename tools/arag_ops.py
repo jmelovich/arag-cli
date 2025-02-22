@@ -9,27 +9,26 @@ CONTENT_LIST = globals.CONTENT_LIST
 
 def create(arag_path, arag_name):
     """
-    Create a new .arag directory.
+    Create a new .arag directory with the '-arag' suffix.
     
     Args:
         arag_path (str): Path to the parent directory.
         arag_name (str): Name of the new .arag directory.
     """
-    
-    # Define paths
-    full_path = os.path.join(arag_path, arag_name + '.arag')
+    # Define paths with '-arag' suffix
+    full_path = os.path.join(arag_path, arag_name + '-arag')
     content_path = os.path.join(full_path, 'content')
     
     # Check if the directory already exists
     if os.path.exists(full_path):
         if os.path.isdir(full_path):
-            print(f"Arag {arag_name}.arag already exists at {arag_path}")
+            print(f"Arag {arag_name}-arag already exists at {arag_path}")
         else:
-            print(f"A file {arag_name}.arag already exists at {arag_path}, cannot create directory")
+            print(f"A file {arag_name}-arag already exists at {arag_path}, cannot create directory")
     else:
         os.makedirs(full_path)
         os.makedirs(content_path)
-        print(f"Created arag {arag_name}.arag at {arag_path}")
+        print(f"Created arag {arag_name}-arag at {arag_path}")
 
 def updateContentList(arag_path):
     """
@@ -128,7 +127,7 @@ def listContents(arag_path):
 
 def package(arag_path):
     """
-    Package the .arag directory into a .arag file.
+    Package the .arag directory into a .arag file, compressing only the 'content' folder.
     
     Args:
         arag_path (str): Path to the .arag directory.
@@ -136,7 +135,11 @@ def package(arag_path):
     if not os.path.isdir(arag_path):
         print(f"{arag_path} is not a directory")
         return
-    output_path = arag_path + '.arag'
+    # Replace '-arag' with '.arag' for the output file
+    if arag_path.endswith('-arag'):
+        output_path = arag_path[:-5] + '.arag'
+    else:
+        output_path = arag_path + '.arag'  # Fallback for unexpected naming
     if os.path.exists(output_path):
         print(f"Output path {output_path} already exists")
         return
@@ -145,15 +148,17 @@ def package(arag_path):
             for file in files:
                 file_path = os.path.join(root, file)
                 arcname = os.path.relpath(file_path, arag_path)
-                if file == 'corpus.db':
-                    zipf.write(file_path, arcname, compress_type=zipfile.ZIP_STORED)
-                else:
+                if arcname.startswith('content/'):
+                    # Compress files in 'content' folder
                     zipf.write(file_path, arcname)
+                else:
+                    # Store other files without compression
+                    zipf.write(file_path, arcname, compress_type=zipfile.ZIP_STORED)
     print(f"Packaged {arag_path} to {output_path}")
 
 def unpackage(packaged_arag_path):
     """
-    Unpackage the .arag file into a .arag directory.
+    Unpackage the .arag file into a directory with '-arag' suffix.
     
     Args:
         packaged_arag_path (str): Path to the packaged .arag file.
@@ -161,7 +166,11 @@ def unpackage(packaged_arag_path):
     if not os.path.isfile(packaged_arag_path):
         print(f"{packaged_arag_path} is not a file")
         return
-    output_dir = packaged_arag_path.rsplit('.arag', 1)[0]
+    # Replace '.arag' with '-arag' for the output directory
+    if packaged_arag_path.endswith('.arag'):
+        output_dir = packaged_arag_path[:-5] + '-arag'
+    else:
+        output_dir = packaged_arag_path + '-arag'  # Fallback for unexpected naming
     if os.path.exists(output_dir):
         print(f"Output directory {output_dir} already exists")
         return
