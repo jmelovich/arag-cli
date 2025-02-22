@@ -7,6 +7,7 @@ import shutil
 from tools.corpus import corpify, clean
 from tools.arag_ops import add, create, delete, listContents
 from tools.index import index
+from tools.retrieval import query
 
 import globals
 
@@ -56,6 +57,12 @@ def main():
     # 'clean' subcommand
     clean_parser = subparsers.add_parser('clean', help="Clean the content folder by removing files not in corpus.db")
     clean_parser.add_argument('--arag', help="Path to the .arag file")
+
+    # 'query' subcommand
+    query_parser = subparsers.add_parser('query', help="Query the corpus with a string")
+    query_parser.add_argument('--arag', help="Path to the .arag file")
+    query_parser.add_argument('--topk', type=int, default=1, help="Number of top results to return")
+    query_parser.add_argument('query_string', help="The query string")
 
     # If no arguments are provided, print help and exit
     if len(sys.argv) == 1:
@@ -150,6 +157,15 @@ def execute_command(args, active_arag=None):
             'yes': args.yes
         }
         corpify(arag_path, options)
+    elif args.subcommand == 'query':
+        arag_path = args.arag if args.arag else active_arag
+        if arag_path is None:
+            print("Error: --arag is required or open an arag first")
+            return
+        if not os.path.isdir(arag_path):
+            print(f"Arag {arag_path} does not exist or is not a directory")
+            return
+        query(arag_path, args.query_string, args.topk)
     elif args.subcommand == 'clean':
         arag_path = args.arag if args.arag else active_arag
         if arag_path is None:
