@@ -1,0 +1,5 @@
+CONTENT_SUBDIR = 'content'
+CONTENT_LIST = 'content_list.txt'
+CORPUS_SUBDIR = 'corpus'
+CORPUS_LIST = 'corpus_list.txt'
+INDEX_SUBDIR = 'index'

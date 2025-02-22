@@ -4,9 +4,18 @@ import shlex
 import os
 import shutil
 
+from tools.corpify import corpify, isCorpified
+from tools.arag_ops import add, create, delete, listContents
+
+import globals
+
 # Define the content subdirectory globally
-CONTENT_SUBDIR = 'content'
-INDEX_SUBDIR = 'index'
+# CONTENT_SUBDIR = 'content'
+# CONTENT_LIST = 'content_list.txt'
+# CORPUS_SUBDIR = 'corpus'
+# CORPUS_LIST = 'corpus_list.txt'
+# INDEX_SUBDIR = 'index'
+
 
 def main():
     # Set up the main argument parser
@@ -39,6 +48,12 @@ def main():
     # 'index' subcommand
     index_parser = subparsers.add_parser('index', help="Generate the index in the .arag file")
     index_parser.add_argument('--arag', help="Path to the .arag file")
+
+    # 'corpify' subcommand
+    corpify_parser = subparsers.add_parser('corpify', help="Corpify the .arag file")
+    corpify_parser.add_argument('--arag', help="Path to the .arag file")
+    corpify_parser.add_argument('--chunk-size', type=int, default=1024*128, help="Chunk size in bytes")
+    corpify_parser.add_argument('--force', action='store_true', help="Force removal of existing corpus folder")
 
     # If no arguments are provided, print help and exit
     if len(sys.argv) == 1:
@@ -81,16 +96,7 @@ def execute_command(args, active_arag=None):
         if not os.path.isdir(args.path):
             print(f"Path {args.path} does not exist or is not a directory")
             return
-        full_path = os.path.join(args.path, args.arag_name + '.arag')
-        if os.path.exists(full_path):
-            if os.path.isdir(full_path):
-                print(f"Arag {args.arag_name}.arag already exists at {args.path}")
-            else:
-                print(f"A file {args.arag_name}.arag already exists at {args.path}, cannot create directory")
-        else:
-            os.makedirs(full_path)
-            os.makedirs(os.path.join(full_path, CONTENT_SUBDIR))
-            print(f"Created arag {args.arag_name}.arag at {args.path}")
+        create(args.path, args.arag_name)
     elif args.subcommand == 'add':
         arag_path = args.arag if args.arag else active_arag
         if arag_path is None:
@@ -99,23 +105,7 @@ def execute_command(args, active_arag=None):
         if not os.path.isdir(arag_path):
             print(f"Arag {arag_path} does not exist or is not a directory")
             return
-        
-        content_path = os.path.join(arag_path, CONTENT_SUBDIR)
-        # Determine if input is a file or directory
-        input_path = args.path  # Assume `args.path` holds either file or directory path
-
-        if os.path.isfile(input_path):
-            shutil.copy(input_path, content_path)
-            print(f"Copied file {input_path} into arag {arag_path}")
-        elif os.path.isdir(input_path):
-            dest_dir = os.path.join(content_path, os.path.basename(input_path))
-            if os.path.exists(dest_dir):
-                print(f"Directory {os.path.basename(input_path)} already exists in arag {arag_path}")
-            else:
-                shutil.copytree(input_path, dest_dir)
-                print(f"Copied directory {input_path} into arag {arag_path}")
-        else:
-            print(f"Error: {input_path} does not exist or is neither a file nor a directory")
+        add(arag_path, args.path)
     elif args.subcommand == 'ls':
         arag_path = args.arag if args.arag else active_arag
         if arag_path is None:
@@ -124,11 +114,7 @@ def execute_command(args, active_arag=None):
         if not os.path.isdir(arag_path):
             print(f"Arag {arag_path} does not exist or is not a directory")
             return
-        content_path = os.path.join(arag_path, CONTENT_SUBDIR)
-        contents = os.listdir(content_path)
-        print(f"Contents of arag {arag_path}:")
-        for item in contents:
-            print(item)
+        listContents(arag_path)
     elif args.subcommand == 'del':
         arag_path = args.arag if args.arag else active_arag
         if arag_path is None:
@@ -137,23 +123,7 @@ def execute_command(args, active_arag=None):
         if not os.path.isdir(arag_path):
             print(f"Arag {arag_path} does not exist or is not a directory")
             return
-        content_path = os.path.join(arag_path, CONTENT_SUBDIR)
-        target_path = os.path.join(content_path, args.target)
-        abs_target_path = os.path.abspath(target_path)
-        abs_content_path = os.path.abspath(content_path)
-        if not abs_target_path.startswith(abs_content_path):
-            print("Error: Target is outside the content folder")
-            return
-        if not os.path.exists(target_path):
-            print(f"Target {args.target} does not exist in arag {arag_path}")
-        elif os.path.isfile(target_path):
-            os.remove(target_path)
-            print(f"Deleted file {args.target} from arag {arag_path}")
-        elif os.path.isdir(target_path):
-            shutil.rmtree(target_path)
-            print(f"Deleted directory {args.target} from arag {arag_path}")
-        else:
-            print(f"Target {args.target} is not a file or directory")
+        delete(arag_path, args.target)
     elif args.subcommand == 'index':
         arag_path = args.arag if args.arag else active_arag
         if arag_path is None:
@@ -162,7 +132,7 @@ def execute_command(args, active_arag=None):
         if not os.path.isdir(arag_path):
             print(f"Arag {arag_path} does not exist or is not a directory")
             return
-        content_path = os.path.join(arag_path, CONTENT_SUBDIR)
+        content_path = os.path.join(arag_path, globals.CONTENT_SUBDIR)
         contents = os.listdir(content_path)
         index_path = os.path.join(arag_path, 'index.txt')
         #placeholder for index, will use FAISS probably
@@ -170,6 +140,19 @@ def execute_command(args, active_arag=None):
             for item in contents:
                 index_file.write(item + '\n')
         print(f"Generated index at {index_path}")
+    elif args.subcommand == 'corpify':
+        arag_path = args.arag if args.arag else active_arag
+        if arag_path is None:
+            print("Error: --arag is required or open an arag first")
+            return
+        if not os.path.isdir(arag_path):
+            print(f"Arag {arag_path} does not exist or is not a directory")
+            return
+        options = {
+            'chunk_size': args.chunk_size,
+            'force': args.force
+        }
+        corpify(arag_path, options)
     elif args.subcommand == 'open':
         print("Already in interactive mode, use 'close' to exit")
     else:
