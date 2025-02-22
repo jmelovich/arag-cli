@@ -77,11 +77,11 @@ def main():
 
     # 'package' subcommand
     package_parser = subparsers.add_parser('package', help="Package an .arag directory into a .arag file")
-    package_parser.add_argument('--arag', help="Path to the .arag directory to package")
+    package_parser.add_argument('arag_path', help="Path to the .arag directory to package")
 
     # 'unpackage' subcommand
     unpackage_parser = subparsers.add_parser('unpackage', help="Unpackage a .arag file into a .arag directory")
-    unpackage_parser.add_argument('--arag', help="Path to the .arag file to unpackage")
+    unpackage_parser.add_argument('arag_path', help="Path to the .arag file to unpackage")
 
     # If no arguments are provided, print help and exit
     if len(sys.argv) == 1:
@@ -177,9 +177,9 @@ def execute_command(args, active_arag=None):
             return
         query(arag_path, args.query_string, args.topk, api_key=args.api_key)
     elif args.subcommand == 'package':
-        # Use provided --arag or active_arag if in interactive mode and it's a directory
-        if args.arag:
-            arag_path = args.arag
+        # Use provided arag_path or active_arag if in interactive mode and it's a directory
+        if args.arag_path:
+            arag_path = args.arag_path
         elif active_arag and os.path.isdir(active_arag):
             arag_path = active_arag
         else:
@@ -190,7 +190,7 @@ def execute_command(args, active_arag=None):
             return
         package(arag_path)
     elif args.subcommand == 'unpackage':
-        arag_path = args.arag
+        arag_path = args.arag_path
         if arag_path is None:
             print("Error: --arag is required")
             return
