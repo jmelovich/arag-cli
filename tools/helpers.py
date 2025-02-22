@@ -42,12 +42,19 @@ def is_packaged(arag_path):
 
 def get_file_from_arag(arag_path, filename):
     if is_packaged(arag_path):
-        with zipfile.ZipFile(arag_path, 'r') as zipf:
-            with zipf.open(filename) as f:
-                return f.read().decode('utf-8')
+        try:
+            with zipfile.ZipFile(arag_path, 'r') as zipf:
+                with zipf.open(filename) as f:
+                    return f.read().decode('utf-8')
+        except KeyError:
+            return None  # File not found in packaged .arag
     else:
-        with open(os.path.join(arag_path, filename), 'r') as f:
-            return f.read()
+        file_path = os.path.join(arag_path, filename)
+        if os.path.exists(file_path):
+            with open(file_path, 'r') as f:
+                return f.read()
+        else:
+            return None  # File not found in directory .arag
 
 def get_corpus_db_temp(arag_path):
     if is_packaged(arag_path):

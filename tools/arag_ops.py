@@ -120,7 +120,11 @@ def listContents(arag_path):
     Args:
         arag_path (str): Path to the .arag directory or packaged file.
     """
-    content_list = get_file_from_arag(arag_path, CONTENT_LIST).splitlines()
+    content_list_str = get_file_from_arag(arag_path, CONTENT_LIST)
+    if content_list_str is None:
+        print(f"Content list file {CONTENT_LIST} not found in arag {arag_path}")
+        return
+    content_list = content_list_str.splitlines()
     print(f"Contents of arag {arag_path}:")
     for file in content_list:
         print(file.strip())

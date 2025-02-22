@@ -72,7 +72,6 @@ def index(arag_path, options):
         print("Corpus database does not exist. Run 'arag corpify' first.")
         return
 
-    # Connect to the SQLite database
     conn = sqlite3.connect(corpus_db_path)
     cursor = conn.cursor()
 
@@ -81,6 +80,17 @@ def index(arag_path, options):
     columns = [col[1] for col in cursor.fetchall()]
     if 'embedding' not in columns:
         cursor.execute("ALTER TABLE chunks ADD COLUMN embedding TEXT")
+    else:
+        # Check if there are any embeddings
+        cursor.execute("SELECT COUNT(*) FROM chunks WHERE embedding IS NOT NULL AND embedding != ''")
+        embedding_count = cursor.fetchone()[0]
+        if embedding_count > 0 and not options.get('force', False):
+            print("Embeddings already exist in corpus.db. Use --force to reindex.")
+            conn.close()
+            return
+        elif options.get('force', False):
+            print("Removing existing embeddings due to --force flag.")
+            cursor.execute("UPDATE chunks SET embedding = NULL")
 
     # Retrieve rows needing embeddings
     cursor.execute("SELECT id, content FROM chunks WHERE embedding IS NULL OR embedding = ''")
@@ -98,29 +108,22 @@ def index(arag_path, options):
 
     conn.commit()
 
-    # Collect metadata
+    # Collect and save metadata (unchanged from original)
     cursor.execute("SELECT COUNT(*) FROM chunks WHERE embedding IS NOT NULL AND embedding != ''")
     total_embeddings = cursor.fetchone()[0]
-
-    # Get vector size from a sample embedding (assuming all embeddings have the same size)
     cursor.execute("SELECT embedding FROM chunks WHERE embedding IS NOT NULL AND embedding != '' LIMIT 1")
     sample_embedding = cursor.fetchone()
     vector_size = len(json.loads(sample_embedding[0])) if sample_embedding else 0
-
     method = options.get('method', 'local')
-
     model_name = options.get('model')
     if not model_name:
         model_name = globals.DEFAULT_LOCAL_EMBEDDING_MODEL if method == 'local' else globals.DEFAULT_OPENAI_EMBEDDING_MODEL
-
     metadata = {
         'method': method,
         'model': model_name,
         'vector_size': vector_size,
         'total_embeddings': total_embeddings
     }
-
-    # Save metadata to index.json
     index_json_path = os.path.join(arag_path, globals.INDEX_JSON)
     with open(index_json_path, 'w') as f:
         json.dump(metadata, f, indent=4)
