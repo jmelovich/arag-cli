@@ -1,0 +1,2 @@
+# aRAG CLI Tool
+This tool is being designed to facilitate the easy creation, moficiation, and use of a custom file type called '.arag'. These .arag files will contain a document corpus with associated embedding vectors, with eventual plug-in-play compatibility (or easy to implement support) for use with RAG and LLMs.
