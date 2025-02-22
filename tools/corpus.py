@@ -2,6 +2,8 @@ import os
 import shutil
 import sqlite3
 
+from .arag_ops import updateContentList
+
 def find_split(s, max_bytes):
     """
     Find the largest prefix of string s whose UTF-8 encoded length is <= max_bytes.
@@ -41,17 +43,27 @@ def corpify(arag_path, options=None):
             - 'force' (bool): If True, overwrite existing corpus.db (default: False).
     """
     if options is None:
-        options = {}
+            options = {}
 
-    # Define the database path
     corpus_db_path = os.path.join(arag_path, 'corpus.db')
 
-    # Handle existing corpus.db
     if os.path.exists(corpus_db_path):
         if not options.get('force', False):
             print("Cannot corpify as existing corpus.db exists, run --force to remove it")
             return
         else:
+            # Check if 'embedding' column exists
+            conn = sqlite3.connect(corpus_db_path)
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(chunks)")
+            columns = [col[1] for col in cursor.fetchall()]
+            conn.close()
+            if 'embedding' in columns:
+                if not options.get('yes', False):
+                    response = input("The existing corpus has embeddings stored, recorpifying will remove these. Are you sure you want to continue? (y/n): ")
+                    if response.lower() != 'y':
+                        print("Aborted")
+                        return
             os.remove(corpus_db_path)
 
     # Connect to SQLite database (creates the file if it doesn’t exist)
@@ -100,3 +112,85 @@ def corpify(arag_path, options=None):
     conn.commit()
     conn.close()
     print(f"Corpified arag {arag_path}")
+
+
+def clean(arag_path):
+    corpus_db_path = os.path.join(arag_path, 'corpus.db')
+    if not os.path.exists(corpus_db_path):
+        print("Corpus database does not exist. Nothing to clean.")
+        return
+
+    content_path = os.path.join(arag_path, 'content')
+
+    # Get unique file_paths from database
+    conn = sqlite3.connect(corpus_db_path)
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT file_path FROM chunks")
+    db_file_paths = set(row[0] for row in cursor.fetchall())
+    conn.close()
+
+    # Get all files in content_path recursively
+    all_files = []
+    for root, _, files in os.walk(content_path):
+        for file in files:
+            file_path = os.path.join(root, file)
+            rel_path = os.path.relpath(file_path, content_path)
+            all_files.append(rel_path)
+
+    # Find files to remove
+    files_to_remove = [f for f in all_files if f not in db_file_paths]
+
+    # Remove them
+    for rel_path in files_to_remove:
+        abs_path = os.path.join(content_path, rel_path)
+        os.remove(abs_path)
+
+    updateContentList(arag_path)
+
+    print(f"Removed {len(files_to_remove)} files from content folder")
+
+
+def isCorpusUpdated(arag_path):
+    """
+    Check if the content folder has changed since the last corpification.
+
+    Args:
+        arag_path (str): Path to the .arag directory.
+
+    Returns:
+        bool: False if the content folder has changed, True otherwise.
+    """
+    corpus_db_path = os.path.join(arag_path, 'corpus.db')
+    if not os.path.exists(corpus_db_path):
+        return False
+
+    content_path = os.path.join(arag_path, 'content')
+    corpus_mtime = os.path.getmtime(corpus_db_path)
+
+    # Get all files in content_path recursively
+    all_files = []
+    for root, _, files in os.walk(content_path):
+        for file in files:
+            file_path = os.path.join(root, file)
+            rel_path = os.path.relpath(file_path, content_path)
+            all_files.append(rel_path)
+
+    # Get unique file_paths from database
+    conn = sqlite3.connect(corpus_db_path)
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT file_path FROM chunks")
+    db_file_paths = set(row[0] for row in cursor.fetchall())
+    conn.close()
+
+    # Check if sets match
+    if set(all_files) != db_file_paths:
+        return False
+
+    # Check modification times
+    for rel_path in all_files:
+        abs_path = os.path.join(content_path, rel_path)
+        file_mtime = os.path.getmtime(abs_path)
+        if file_mtime > corpus_mtime:
+            return False
+
+    return True

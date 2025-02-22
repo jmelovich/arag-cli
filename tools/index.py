@@ -127,3 +127,23 @@ def index(arag_path, options):
 
     conn.close()
     print(f"Indexed {total_embeddings} embeddings in arag {arag_path}")
+
+def isIndexUpdated(arag_path):
+    """
+    Check if the corpus has been modified since the last indexing.
+
+    Args:
+        arag_path (str): Path to the .arag directory.
+
+    Returns:
+        bool: False if the corpus has been modified, True otherwise.
+    """
+    corpus_db_path = os.path.join(arag_path, 'corpus.db')
+    index_json_path = os.path.join(arag_path, 'index.json')
+    if not os.path.exists(index_json_path):
+        return False
+    if not os.path.exists(corpus_db_path):
+        return False
+    corpus_mtime = os.path.getmtime(corpus_db_path)
+    index_mtime = os.path.getmtime(index_json_path)
+    return corpus_mtime <= index_mtime

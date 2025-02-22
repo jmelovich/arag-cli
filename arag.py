@@ -4,7 +4,7 @@ import shlex
 import os
 import shutil
 
-from tools.corpus import corpify, isCorpified
+from tools.corpus import corpify, clean
 from tools.arag_ops import add, create, delete, listContents
 from tools.index import index
 
@@ -51,6 +51,11 @@ def main():
     corpify_parser.add_argument('--arag', help="Path to the .arag file")
     corpify_parser.add_argument('--chunk-size', type=int, default=1024*32, help="Chunk size in bytes")
     corpify_parser.add_argument('--force', action='store_true', help="Force removal of existing corpus folder")
+    corpify_parser.add_argument('-y', '--yes', action='store_true', help="Assume yes to all prompts")
+
+    # 'clean' subcommand
+    clean_parser = subparsers.add_parser('clean', help="Clean the content folder by removing files not in corpus.db")
+    clean_parser.add_argument('--arag', help="Path to the .arag file")
 
     # If no arguments are provided, print help and exit
     if len(sys.argv) == 1:
@@ -141,9 +146,19 @@ def execute_command(args, active_arag=None):
             return
         options = {
             'chunk_size': args.chunk_size,
-            'force': args.force
+            'force': args.force,
+            'yes': args.yes
         }
         corpify(arag_path, options)
+    elif args.subcommand == 'clean':
+        arag_path = args.arag if args.arag else active_arag
+        if arag_path is None:
+            print("Error: --arag is required or open an arag first")
+            return
+        if not os.path.isdir(arag_path):
+            print(f"Arag {arag_path} does not exist or is not a directory")
+            return
+        clean(arag_path)
     elif args.subcommand == 'open':
         print("Already in interactive mode, use 'close' to exit")
     else:
