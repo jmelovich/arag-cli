@@ -3,14 +3,17 @@ import sys
 import shlex
 import os
 import shutil
+import zipfile
+import tempfile
+import json
 
 from tools.corpus import corpify, clean
-from tools.arag_ops import add, create, delete, listContents
+from tools.arag_ops import add, create, delete, listContents, package, unpackage
 from tools.index import index
 from tools.retrieval import query
+from tools.helpers import is_packaged, get_file_from_arag, get_corpus_db_temp
 
 import globals
-
 
 def main():
     # Set up the main argument parser
@@ -48,7 +51,7 @@ def main():
     index_parser.add_argument('--api-key', help="OpenAI API key")
 
     # 'corpify' subcommand
-    corpify_parser = subparsers.add_parser('corpify', help="Corpify the .arag file")
+    corpify_parser = subparsers.add_parser('corpify', help="Corpify the content in the .arag file")
     corpify_parser.add_argument('--arag', help="Path to the .arag file")
     corpify_parser.add_argument('--chunk-size', type=int, default=1024*32, help="Chunk size in bytes")
     corpify_parser.add_argument('--force', action='store_true', help="Force removal of existing corpus folder")
@@ -59,10 +62,18 @@ def main():
     clean_parser.add_argument('--arag', help="Path to the .arag file")
 
     # 'query' subcommand
-    query_parser = subparsers.add_parser('query', help="Query the corpus with a string")
+    query_parser = subparsers.add_parser('query', help="Vector query the corpus with a string")
     query_parser.add_argument('--arag', help="Path to the .arag file")
     query_parser.add_argument('--topk', type=int, default=1, help="Number of top results to return")
     query_parser.add_argument('query_string', help="The query string")
+
+    # 'package' subcommand
+    package_parser = subparsers.add_parser('package', help="Package an .arag directory into a .arag file")
+    package_parser.add_argument('--arag', help="Path to the .arag directory to package")
+
+    # 'unpackage' subcommand
+    unpackage_parser = subparsers.add_parser('unpackage', help="Unpackage a .arag file into a .arag directory")
+    unpackage_parser.add_argument('--arag', help="Path to the .arag file to unpackage")
 
     # If no arguments are provided, print help and exit
     if len(sys.argv) == 1:
@@ -74,8 +85,9 @@ def main():
 
     # Handle the 'open' subcommand to enter interactive mode
     if args.subcommand == 'open':
-        if os.path.isdir(args.arag_path):
-            active_arag = args.arag_path
+        arag_path = args.arag_path
+        if os.path.isdir(arag_path) or os.path.isfile(arag_path):
+            active_arag = arag_path
             print(f"Opened arag {active_arag}")
             while True:
                 try:
@@ -94,7 +106,7 @@ def main():
                     print("\nExiting")
                     break
         else:
-            print(f"Arag {args.arag_path} does not exist or is not a directory")
+            print(f"Arag {arag_path} does not exist")
     else:
         # Handle standalone commands
         execute_command(args, active_arag=None)
@@ -106,75 +118,56 @@ def execute_command(args, active_arag=None):
             print(f"Path {args.path} does not exist or is not a directory")
             return
         create(args.path, args.arag_name)
-    elif args.subcommand == 'add':
+    elif args.subcommand in ['add', 'del', 'ls', 'index', 'corpify', 'query', 'clean']:
         arag_path = args.arag if args.arag else active_arag
         if arag_path is None:
             print("Error: --arag is required or open an arag first")
             return
-        if not os.path.isdir(arag_path):
-            print(f"Arag {arag_path} does not exist or is not a directory")
+        if not (os.path.isdir(arag_path) or os.path.isfile(arag_path)):
+            print(f"Arag {arag_path} does not exist")
             return
-        add(arag_path, args.path)
-    elif args.subcommand == 'ls':
-        arag_path = args.arag if args.arag else active_arag
+        if args.subcommand in ['add', 'del', 'corpify', 'index', 'clean']:
+            if is_packaged(arag_path):
+                print("Error: Modification is not supported for packaged .arag files")
+                return
+        if args.subcommand == 'add':
+            add(arag_path, args.path)
+        elif args.subcommand == 'del':
+            delete(arag_path, args.target)
+        elif args.subcommand == 'ls':
+            listContents(arag_path)
+        elif args.subcommand == 'index':
+            options = {'method': args.method, 'model': args.model, 'api_key': args.api_key}
+            index(arag_path, options)
+        elif args.subcommand == 'corpify':
+            options = {
+                'chunk_size': args.chunk_size,
+                'force': args.force,
+                'yes': args.yes
+            }
+            corpify(arag_path, options)
+        elif args.subcommand == 'query':
+            query(arag_path, args.query_string, args.topk)
+        elif args.subcommand == 'clean':
+            clean(arag_path)
+    elif args.subcommand == 'package':
+        arag_path = args.arag
         if arag_path is None:
-            print("Error: --arag is required or open an arag first")
+            print("Error: --arag is required")
             return
         if not os.path.isdir(arag_path):
-            print(f"Arag {arag_path} does not exist or is not a directory")
+            print(f"{arag_path} is not a directory")
             return
-        listContents(arag_path)
-    elif args.subcommand == 'del':
-        arag_path = args.arag if args.arag else active_arag
+        package(arag_path)
+    elif args.subcommand == 'unpackage':
+        arag_path = args.arag
         if arag_path is None:
-            print("Error: --arag is required or open an arag first")
+            print("Error: --arag is required")
             return
-        if not os.path.isdir(arag_path):
-            print(f"Arag {arag_path} does not exist or is not a directory")
+        if not os.path.isfile(arag_path):
+            print(f"{arag_path} is not a file")
             return
-        delete(arag_path, args.target)
-    elif args.subcommand == 'index':
-        arag_path = args.arag if args.arag else active_arag
-        if arag_path is None:
-            print("Error: --arag is required or open an arag first")
-            return
-        if not os.path.isdir(arag_path):
-            print(f"Arag {arag_path} does not exist or is not a directory")
-            return
-        options = {'method': args.method, 'model': args.model, 'api_key': args.api_key}
-        index(arag_path, options)
-    elif args.subcommand == 'corpify':
-        arag_path = args.arag if args.arag else active_arag
-        if arag_path is None:
-            print("Error: --arag is required or open an arag first")
-            return
-        if not os.path.isdir(arag_path):
-            print(f"Arag {arag_path} does not exist or is not a directory")
-            return
-        options = {
-            'chunk_size': args.chunk_size,
-            'force': args.force,
-            'yes': args.yes
-        }
-        corpify(arag_path, options)
-    elif args.subcommand == 'query':
-        arag_path = args.arag if args.arag else active_arag
-        if arag_path is None:
-            print("Error: --arag is required or open an arag first")
-            return
-        if not os.path.isdir(arag_path):
-            print(f"Arag {arag_path} does not exist or is not a directory")
-            return
-        query(arag_path, args.query_string, args.topk)
-    elif args.subcommand == 'clean':
-        arag_path = args.arag if args.arag else active_arag
-        if arag_path is None:
-            print("Error: --arag is required or open an arag first")
-            return
-        if not os.path.isdir(arag_path):
-            print(f"Arag {arag_path} does not exist or is not a directory")
-            return
-        clean(arag_path)
+        unpackage(arag_path)
     elif args.subcommand == 'open':
         print("Already in interactive mode, use 'close' to exit")
     else:

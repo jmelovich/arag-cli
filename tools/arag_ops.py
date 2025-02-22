@@ -1,8 +1,9 @@
 import os
 import shutil
+import zipfile
 
 import globals
-from .helpers import get_files
+from .helpers import get_files, is_packaged, get_file_from_arag
 
 CONTENT_LIST = globals.CONTENT_LIST
 
@@ -29,7 +30,6 @@ def create(arag_path, arag_name):
         os.makedirs(full_path)
         os.makedirs(content_path)
         print(f"Created arag {arag_name}.arag at {arag_path}")
-
 
 def updateContentList(arag_path):
     """
@@ -114,22 +114,57 @@ def delete(arag_path, target):
     else:
         print(f"Target {target} is not a file or directory")
 
-
 def listContents(arag_path):
     """
     Recursively list the contents of the .arag/content/ directory.
     
     Args:
+        arag_path (str): Path to the .arag directory or packaged file.
+    """
+    content_list = get_file_from_arag(arag_path, CONTENT_LIST).splitlines()
+    print(f"Contents of arag {arag_path}:")
+    for file in content_list:
+        print(file.strip())
+
+def package(arag_path):
+    """
+    Package the .arag directory into a .arag file.
+    
+    Args:
         arag_path (str): Path to the .arag directory.
     """
+    if not os.path.isdir(arag_path):
+        print(f"{arag_path} is not a directory")
+        return
+    output_path = arag_path + '.arag'
+    if os.path.exists(output_path):
+        print(f"Output path {output_path} already exists")
+        return
+    with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for root, dirs, files in os.walk(arag_path):
+            for file in files:
+                file_path = os.path.join(root, file)
+                arcname = os.path.relpath(file_path, arag_path)
+                if file == 'corpus.db':
+                    zipf.write(file_path, arcname, compress_type=zipfile.ZIP_STORED)
+                else:
+                    zipf.write(file_path, arcname)
+    print(f"Packaged {arag_path} to {output_path}")
+
+def unpackage(packaged_arag_path):
+    """
+    Unpackage the .arag file into a .arag directory.
     
-    # get the contents of the content list file
-    content_list = os.path.join(arag_path, CONTENT_LIST)
-    with open(content_list, 'r') as list_file:
-        files = list_file.readlines()
-    
-    # print the contents
-    print(f"Contents of arag {arag_path}:")
-    for file in files:
-        print(file.strip())
-    
+    Args:
+        packaged_arag_path (str): Path to the packaged .arag file.
+    """
+    if not os.path.isfile(packaged_arag_path):
+        print(f"{packaged_arag_path} is not a file")
+        return
+    output_dir = packaged_arag_path.rsplit('.arag', 1)[0]
+    if os.path.exists(output_dir):
+        print(f"Output directory {output_dir} already exists")
+        return
+    with zipfile.ZipFile(packaged_arag_path, 'r') as zipf:
+        zipf.extractall(output_dir)
+    print(f"Unpackaged {packaged_arag_path} to {output_dir}")

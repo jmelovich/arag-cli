@@ -1,8 +1,8 @@
 import os
+import shutil
+import tempfile
+import zipfile
 
-# function that takes in an absolute path and returns a list of all files in the directory and its subdirectories
-# each item in the list should be the path to the file, relative to the .arag/content directory
-# meaning if a file is at '/home/usr/lmelo/dev/testFile.arag/content/dir1/file1.txt', the path in the list should be 'dir1/file1.txt'
 def get_files(path):
     # Initialize the list of files
     files = []
@@ -36,3 +36,24 @@ def get_files(path):
     
     # Return the list of files
     return files
+
+def is_packaged(arag_path):
+    return os.path.isfile(arag_path)
+
+def get_file_from_arag(arag_path, filename):
+    if is_packaged(arag_path):
+        with zipfile.ZipFile(arag_path, 'r') as zipf:
+            with zipf.open(filename) as f:
+                return f.read().decode('utf-8')
+    else:
+        with open(os.path.join(arag_path, filename), 'r') as f:
+            return f.read()
+
+def get_corpus_db_temp(arag_path):
+    if is_packaged(arag_path):
+        with zipfile.ZipFile(arag_path, 'r') as zipf:
+            with zipf.open('corpus.db') as src, tempfile.NamedTemporaryFile(delete=False) as dst:
+                shutil.copyfileobj(src, dst)
+                return dst.name
+    else:
+        return os.path.join(arag_path, 'corpus.db')
