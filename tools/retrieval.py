@@ -6,7 +6,7 @@ from .index import generateEmbedding
 from .helpers import get_file_from_arag, is_packaged
 from .vfs import zip_vfs  # Import the registered ZipVFS instance
 
-def query(arag_path, query_string, topk=1, api_key=None, get_file=False):
+def query(arag_path, query_string, topk=1, api_key=None, get_file=False, endpoint=None):
     """
     Query the corpus database with a string, returning the top-k results.
     Accesses corpus.db directly from the archive if packaged.
@@ -19,8 +19,11 @@ def query(arag_path, query_string, topk=1, api_key=None, get_file=False):
     metadata = json.loads(metadata_str)
     method = metadata['method']
     model = metadata['model']
+    metadata_endpoint = metadata.get('endpoint') if method == 'openai' else None  # Get endpoint from metadata
+    effective_endpoint = endpoint or metadata_endpoint  # Prefer command-line endpoint, else metadata
     options = {'method': method, 'model': model}
     if method == 'openai':
+        options['endpoint'] = effective_endpoint
         effective_api_key = api_key or os.getenv('OPENAI_API_KEY')
         if not effective_api_key:
             print("OpenAI API key is required for 'openai' method. Provide --api-key or set OPENAI_API_KEY environment variable.")

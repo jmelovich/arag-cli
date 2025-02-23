@@ -2,7 +2,7 @@ import os
 import shutil
 import sqlite3
 
-from .arag_ops import updateContentList
+from .content import updateContentList
 from .helpers import processFileToText
 
 def find_split(s, max_bytes):

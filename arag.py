@@ -8,7 +8,8 @@ import tempfile
 import json
 
 from tools.corpus import corpify, clean
-from tools.arag_ops import add, create, delete, listContents, package, unpackage
+from tools.content import add, delete, listContents
+from tools.arag_ops import create, create_spec, create_from_spec, package, unpackage
 from tools.index import index
 from tools.retrieval import query
 from tools.helpers import is_packaged
@@ -20,10 +21,22 @@ def main():
     parser = argparse.ArgumentParser(description="CLI tool 'arag' for managing .arag files")
     subparsers = parser.add_subparsers(dest='subcommand', required=True, help="Available commands")
 
-    # 'create' subcommand
-    create_parser = subparsers.add_parser('create', help="Create a new .arag file")
-    create_parser.add_argument('arag_name', help="Name of the .arag file to create")
-    create_parser.add_argument('path', help="Directory path where the .arag file will be created")
+    # 'create' subcommand with subparsers
+    create_parser = subparsers.add_parser('create', help="Create a new .arag file or spec")
+    create_subparsers = create_parser.add_subparsers(dest='create_type', required=True, help="Create commands")
+
+    # 'create dir'
+    dir_parser = create_subparsers.add_parser('dir', help="Create a new .arag directory")
+    dir_parser.add_argument('arag_name', help="Name of the .arag file to create")
+    dir_parser.add_argument('path', help="Directory path where the .arag file will be created")
+
+    # 'create spec'
+    spec_parser = create_subparsers.add_parser('spec', help="Create a template .arag.json file")
+    spec_parser.add_argument('destination_path', help="Path to save the .arag.json file")
+
+    # 'create from-spec'
+    from_spec_parser = create_subparsers.add_parser('from-spec', help="Create a packaged .arag from a .arag.json file")
+    from_spec_parser.add_argument('spec_file', help="Path to the .arag.json file")
 
     # 'content' subcommand
     content_parser = subparsers.add_parser('content', help="Manage content in the .arag file")
@@ -68,14 +81,16 @@ def main():
     index_parser.add_argument('--model', help="Embedding model name")
     index_parser.add_argument('--api-key', help="OpenAI API key")
     index_parser.add_argument('--force', action='store_true', help="Force reindexing by removing existing embeddings")
+    index_parser.add_argument('--endpoint', help="OpenAI API endpoint")  # Added endpoint argument
 
     # 'query' subcommand
     query_parser = subparsers.add_parser('query', help="Vector query the corpus with a string")
     query_parser.add_argument('--arag', help="Path to the .arag file")
     query_parser.add_argument('--topk', type=int, default=1, help="Number of top results to return")
-    query_parser.add_argument('--api-key', help="OpenAI API key (required if index uses 'openai' method)")
+    query_parser.add_argument('--api-key', help="OpenAI API key")
     query_parser.add_argument('--get-file', action='store_true', help="Return the relative file path instead of content")
     query_parser.add_argument('query_string', help="The query string")
+    query_parser.add_argument('--endpoint', help="OpenAI API endpoint")  # Added endpoint argument
 
 
     # 'package' subcommand
@@ -86,12 +101,14 @@ def main():
     unpackage_parser = subparsers.add_parser('unpackage', help="Unpackage a .arag file into a .arag directory")
     unpackage_parser.add_argument('arag_path', nargs='?', help="Path to the .arag file to unpackage")
 
-    # Check if invoked with a single .arag file argument
+    # Parse arguments
     if len(sys.argv) == 2 and sys.argv[1].endswith('.arag') and os.path.isfile(sys.argv[1]):
-        # Treat as 'open <file>' command
+        # treat as open command
         args = argparse.Namespace(subcommand='open', arag_path=sys.argv[1])
+    elif len(sys.argv) == 2 and sys.argv[1].endswith('.arag-json') and os.path.isfile(sys.argv[1]):
+        # treat as create from-spec command
+        args = argparse.Namespace(subcommand='create', create_type='from-spec', spec_file=sys.argv[1])
     else:
-        # Parse arguments normally
         if len(sys.argv) == 1:
             parser.print_help()
             return
@@ -157,10 +174,15 @@ def execute_command(args, active_arag=None):
             }
             corpify(arag_path, options)
     elif args.subcommand == 'create':
-        if not os.path.isdir(args.path):
-            print(f"Path {args.path} does not exist or is not a directory")
-            return
-        create(args.path, args.arag_name)
+        if args.create_type == 'dir':
+            if not os.path.isdir(args.path):
+                print(f"Path {args.path} does not exist or is not a directory")
+                return
+            create(args.path, args.arag_name)
+        elif args.create_type == 'spec':
+            create_spec(args.destination_path)
+        elif args.create_type == 'from-spec':
+            create_from_spec(args.spec_file)
     elif args.subcommand == 'index':
         arag_path = args.arag if args.arag else active_arag
         if arag_path is None:
@@ -172,7 +194,13 @@ def execute_command(args, active_arag=None):
         if is_packaged(arag_path):
             print("Error: Modification is not supported for packaged .arag files")
             return
-        options = {'method': args.method, 'model': args.model, 'api_key': args.api_key, 'force': args.force}
+        options = {
+            'method': args.method,
+            'model': args.model,
+            'api_key': args.api_key,
+            'force': args.force,
+            'endpoint': args.endpoint  # Pass endpoint
+        }
         index(arag_path, options)
     elif args.subcommand == 'query':
         arag_path = args.arag if args.arag else active_arag
@@ -182,7 +210,8 @@ def execute_command(args, active_arag=None):
         if not (os.path.isdir(arag_path) or os.path.isfile(arag_path)):
             print(f"Arag {arag_path} does not exist")
             return
-        query(arag_path, args.query_string, args.topk, api_key=args.api_key, get_file=args.get_file)
+        query(arag_path, args.query_string, args.topk, api_key=args.api_key, 
+              get_file=args.get_file, endpoint=args.endpoint)  # Pass endpoint
     elif args.subcommand == 'package':
         # Use provided arag_path or active_arag if in interactive mode and it's a directory
         arag_path = args.arag_path if args.arag_path is not None else active_arag

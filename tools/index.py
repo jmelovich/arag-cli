@@ -41,7 +41,8 @@ def generateEmbedding(content, options):
         api_key = options.get('api_key') or os.getenv('OPENAI_API_KEY')
         if not api_key:
             raise ValueError("OpenAI API key is required. Provide it in options['api_key'] or set OPENAI_API_KEY environment variable.")
-        client = OpenAI(api_key=api_key)
+        base_url = options.get('endpoint', 'https://api.openai.com/v1')  # Use provided endpoint or default
+        client = OpenAI(api_key=api_key, base_url=base_url)
         response = client.embeddings.create(input=content, model=model_name)
         embedding = response.data[0].embedding
     elif method == 'local':
@@ -123,8 +124,10 @@ def index(arag_path, options):
         'model': model_name,
         'vector_size': vector_size,
         'total_embeddings': total_embeddings,
-        'version': globals.VERSION
+        'version': globals.VERSION,
     }
+    if method == 'openai':
+        metadata['endpoint'] = options.get('endpoint', 'https://api.openai.com/v1')  # Save endpoint in metadata
     index_json_path = os.path.join(arag_path, globals.INDEX_JSON)
     with open(index_json_path, 'w') as f:
         json.dump(metadata, f, indent=4)
