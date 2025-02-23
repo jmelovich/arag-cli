@@ -1,8 +1,9 @@
 from setuptools import setup, find_packages
+import globals
 
 setup(
     name='arag',
-    version='0.1.0',
+    version=globals.VERSION,
     description='A CLI tool for creating, managing, and using .arag files',
     author='John Luke Melovich (jmelovich)',
     packages=find_packages(),  # Automatically includes all packages found

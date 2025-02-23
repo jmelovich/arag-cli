@@ -1,3 +1,6 @@
+
+VERSION = '0.1.0'
+
 CONTENT_SUBDIR = 'content'
 CONTENT_LIST = 'content_list.txt'
 CORPUS_DB = 'corpus.db'

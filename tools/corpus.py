@@ -115,6 +115,8 @@ def corpify(arag_path, options=None):
     conn.commit()
     conn.close()
     print(f"Corpified arag {arag_path}")
+    if options.get('clean', False):
+        clean(arag_path)
 
 
 def clean(arag_path):

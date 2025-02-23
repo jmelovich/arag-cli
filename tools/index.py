@@ -122,7 +122,8 @@ def index(arag_path, options):
         'method': method,
         'model': model_name,
         'vector_size': vector_size,
-        'total_embeddings': total_embeddings
+        'total_embeddings': total_embeddings,
+        'version': globals.VERSION
     }
     index_json_path = os.path.join(arag_path, globals.INDEX_JSON)
     with open(index_json_path, 'w') as f:

@@ -6,7 +6,7 @@ from .index import generateEmbedding
 from .helpers import get_file_from_arag, is_packaged
 from .vfs import zip_vfs  # Import the registered ZipVFS instance
 
-def query(arag_path, query_string, topk=1, api_key=None):
+def query(arag_path, query_string, topk=1, api_key=None, get_file=False):
     """
     Query the corpus database with a string, returning the top-k results.
     Accesses corpus.db directly from the archive if packaged.
@@ -78,11 +78,16 @@ def query(arag_path, query_string, topk=1, api_key=None):
         results_dict = {row[0]: (row[1], row[2]) for row in results}
 
         # Display results
-        for id in topk_ids:
-            file_path, content = results_dict[id]
-            print(f"File: {file_path}")
-            print(f"Content: {content}")
-            print("---")
+        if get_file:
+            for id in topk_ids:
+                file_path, _ = results_dict[id]
+                print(file_path)
+        else:
+            for id in topk_ids:
+                file_path, content = results_dict[id]
+                print(f"File: {file_path}")
+                print(f"Content: {content}")
+                print("---")
 
         conn.close()
     except Exception as e:

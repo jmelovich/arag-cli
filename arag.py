@@ -53,6 +53,7 @@ def main():
     corpify_parser.add_argument('--chunk-size', type=int, default=8192, help="Chunk size in bytes")
     corpify_parser.add_argument('--force', action='store_true', help="Force removal of existing corpus folder")
     corpify_parser.add_argument('-y', '--yes', action='store_true', help="Assume yes to all prompts")
+    corpify_parser.add_argument('--clean', action='store_true', help="Automatically clean content folder after successful corpification")
 
 
 
@@ -73,7 +74,9 @@ def main():
     query_parser.add_argument('--arag', help="Path to the .arag file")
     query_parser.add_argument('--topk', type=int, default=1, help="Number of top results to return")
     query_parser.add_argument('--api-key', help="OpenAI API key (required if index uses 'openai' method)")
+    query_parser.add_argument('--get-file', action='store_true', help="Return the relative file path instead of content")
     query_parser.add_argument('query_string', help="The query string")
+
 
     # 'package' subcommand
     package_parser = subparsers.add_parser('package', help="Package an .arag directory into a .arag file")
@@ -149,7 +152,8 @@ def execute_command(args, active_arag=None):
             options = {
                 'chunk_size': args.chunk_size,
                 'force': args.force,
-                'yes': args.yes
+                'yes': args.yes,
+                'clean': args.clean
             }
             corpify(arag_path, options)
     elif args.subcommand == 'create':
@@ -178,7 +182,7 @@ def execute_command(args, active_arag=None):
         if not (os.path.isdir(arag_path) or os.path.isfile(arag_path)):
             print(f"Arag {arag_path} does not exist")
             return
-        query(arag_path, args.query_string, args.topk, api_key=args.api_key)
+        query(arag_path, args.query_string, args.topk, api_key=args.api_key, get_file=args.get_file)
     elif args.subcommand == 'package':
         # Use provided arag_path or active_arag if in interactive mode and it's a directory
         arag_path = args.arag_path if args.arag_path is not None else active_arag
