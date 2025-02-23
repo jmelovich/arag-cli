@@ -50,7 +50,7 @@ def main():
     # 'content corpify'
     corpify_parser = content_subparsers.add_parser('corpify', help="Corpify the content in the .arag file")
     corpify_parser.add_argument('--arag', help="Path to the .arag file")
-    corpify_parser.add_argument('--chunk-size', type=int, default=1024*32, help="Chunk size in bytes")
+    corpify_parser.add_argument('--chunk-size', type=int, default=8192, help="Chunk size in bytes")
     corpify_parser.add_argument('--force', action='store_true', help="Force removal of existing corpus folder")
     corpify_parser.add_argument('-y', '--yes', action='store_true', help="Assume yes to all prompts")
 

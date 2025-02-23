@@ -3,6 +3,7 @@ import shutil
 import sqlite3
 
 from .arag_ops import updateContentList
+from .helpers import processFileToText
 
 def find_split(s, max_bytes):
     """
@@ -79,7 +80,7 @@ def corpify(arag_path, options=None):
 
     # Define content directory and chunk size
     content_path = os.path.join(arag_path, 'content')
-    chunk_size = options.get('chunk_size', 1024 * 128)  # Default in bytes, overridden by argparse if specified
+    chunk_size = options.get('chunk_size', 8192)  # Default in bytes, overridden by argparse if specified
 
     # Process each file recursively
     for root, _, files in os.walk(content_path):
@@ -89,8 +90,10 @@ def corpify(arag_path, options=None):
                 with open(file_path, 'r', encoding='utf-8') as infile:
                     content = infile.read()
             except UnicodeDecodeError:
-                print(f"Skipping non-UTF-8 file: {file_path}")
-                continue
+                content = processFileToText(file_path)
+                if content is None:
+                    print(f"Skipping non-UTF-8 or non-convertable file: {file_path}")
+                    continue
 
             # Compute relative path
             rel_path = os.path.relpath(file_path, content_path)

@@ -3,6 +3,10 @@ import shutil
 import tempfile
 import zipfile
 
+from pypdf import PdfReader
+from spire.doc import *
+from spire.doc.common import *
+
 def get_files(path):
     # Initialize the list of files
     files = []
@@ -64,3 +68,42 @@ def get_corpus_db_temp(arag_path):
                 return dst.name
     else:
         return os.path.join(arag_path, 'corpus.db')
+    
+
+def processFileToText(file_path):
+    # this will attempt to process non-UTF8 file types to text
+    # such as PDF, DOCX, etc.
+
+    # switch on the file type
+    # if PDF, use PyMuPDF
+    # if DOCX, use python-docx
+    # else return None
+
+    # get file type
+    file_type = file_path.split('.')[-1]
+    if file_type == 'pdf':
+        # process PDF
+        return processPDF(file_path)
+    elif file_type == 'docx':
+        # process DOCX
+        return processDOCX(file_path)
+    else:
+        return None
+    
+
+def processPDF(file_path):
+    # read the PDF file
+    reader = PdfReader(file_path)
+    text = ''
+    for page in reader.pages:
+        text += page.extract_text()
+    return text
+
+def processDOCX(file_path):
+    # read the DOCX file
+    doc = Document()
+    doc.LoadFromFile(file_path)
+    
+    text = doc.GetText()
+    doc.Close()
+    return text

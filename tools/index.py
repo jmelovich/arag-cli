@@ -20,7 +20,7 @@ def generateEmbedding(content, options):
         content (str): The text content to embed.
         options (dict): Configuration options including:
             - 'method' (str): 'openai' for OpenAI API or 'local' for local model (default: 'local').
-            - 'model' (str): Model name (default: 'all-MiniLM-L6-v2' for local, 'text-embedding-ada-002' for OpenAI).
+            - 'model' (str): Model name (default: 'sentence-transformers/all-MiniLM-L6-v2' for local, 'text-embedding-3-small' for OpenAI).
             - 'api_key' (str, optional): OpenAI API key if using 'openai' method.
 
     Returns:
@@ -57,15 +57,10 @@ def generateEmbedding(content, options):
 def index(arag_path, options):
     """
     Index the corpus by generating embeddings for each row in corpus.db and save metadata.
-
+    
     Args:
         arag_path (str): Path to the .arag directory.
-        options (dict): Configuration options for embedding generation (passed to generateEmbedding).
-
-    Notes:
-        - Adds an 'embedding' column to the 'chunks' table if it doesn't exist.
-        - Processes only rows where 'embedding' is NULL or empty.
-        - Saves metadata to 'index.json' in the .arag directory.
+        options (dict): Configuration options for embedding generation.
     """
     corpus_db_path = os.path.join(arag_path, 'corpus.db')
     if not os.path.exists(corpus_db_path):
@@ -81,7 +76,6 @@ def index(arag_path, options):
     if 'embedding' not in columns:
         cursor.execute("ALTER TABLE chunks ADD COLUMN embedding TEXT")
     else:
-        # Check if there are any embeddings
         cursor.execute("SELECT COUNT(*) FROM chunks WHERE embedding IS NOT NULL AND embedding != ''")
         embedding_count = cursor.fetchone()[0]
         if embedding_count > 0 and not options.get('force', False):
@@ -96,19 +90,25 @@ def index(arag_path, options):
     cursor.execute("SELECT id, content FROM chunks WHERE embedding IS NULL OR embedding = ''")
     rows = cursor.fetchall()
 
-    # Process each row
+    # Process each row, canceling on first error
     for row in rows:
         id, content = row
         try:
             embedding = generateEmbedding(content, options)
             embedding_json = json.dumps(embedding)
             cursor.execute("UPDATE chunks SET embedding = ? WHERE id = ?", (embedding_json, id))
+            print(f"Generated embedding {id} / {len(rows)}")
         except Exception as e:
             print(f"Error generating embedding for id {id}: {e}")
+            conn.rollback()
+            conn.close()
+            print("Indexing operation cancelled due to error.")
+            return
 
+    # Commit changes if all embeddings succeed
     conn.commit()
 
-    # Collect and save metadata (unchanged from original)
+    # Save metadata
     cursor.execute("SELECT COUNT(*) FROM chunks WHERE embedding IS NOT NULL AND embedding != ''")
     total_embeddings = cursor.fetchone()[0]
     cursor.execute("SELECT embedding FROM chunks WHERE embedding IS NOT NULL AND embedding != '' LIMIT 1")
