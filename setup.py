@@ -4,7 +4,7 @@ import globals
 setup(
     name='arag',
     version=globals.VERSION,
-    description='A CLI tool for creating, managing, and using .arag files',
+    description='A CLI tool for creating, managing, and a custom file type called .arag.',
     author='John Luke Melovich (jmelovich)',
     packages=find_packages(),  # Automatically includes all packages found
     py_modules=['arag', 'globals'],  # Top-level modules
