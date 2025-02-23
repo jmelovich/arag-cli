@@ -77,20 +77,23 @@ def main():
 
     # 'package' subcommand
     package_parser = subparsers.add_parser('package', help="Package an .arag directory into a .arag file")
-    package_parser.add_argument('arag_path', help="Path to the .arag directory to package")
+    package_parser.add_argument('arag_path', nargs='?', help="Path to the .arag directory to package")
 
     # 'unpackage' subcommand
     unpackage_parser = subparsers.add_parser('unpackage', help="Unpackage a .arag file into a .arag directory")
-    unpackage_parser.add_argument('arag_path', help="Path to the .arag file to unpackage")
+    unpackage_parser.add_argument('arag_path', nargs='?', help="Path to the .arag file to unpackage")
 
-    # If no arguments are provided, print help and exit
-    if len(sys.argv) == 1:
-        parser.print_help()
-        return
-
-    # Parse the command-line arguments
-    args = parser.parse_args()
-
+    # Check if invoked with a single .arag file argument
+    if len(sys.argv) == 2 and sys.argv[1].endswith('.arag') and os.path.isfile(sys.argv[1]):
+        # Treat as 'open <file>' command
+        args = argparse.Namespace(subcommand='open', arag_path=sys.argv[1])
+    else:
+        # Parse arguments normally
+        if len(sys.argv) == 1:
+            parser.print_help()
+            return
+        args = parser.parse_args()
+    
     # Handle the 'open' subcommand to enter interactive mode
     if args.subcommand == 'open':
         arag_path = args.arag_path
@@ -178,21 +181,18 @@ def execute_command(args, active_arag=None):
         query(arag_path, args.query_string, args.topk, api_key=args.api_key)
     elif args.subcommand == 'package':
         # Use provided arag_path or active_arag if in interactive mode and it's a directory
-        if args.arag_path:
-            arag_path = args.arag_path
-        elif active_arag and os.path.isdir(active_arag):
-            arag_path = active_arag
-        else:
-            print("Error: --arag is required or open a directory arag first")
+        arag_path = args.arag_path if args.arag_path is not None else active_arag
+        if arag_path is None:
+            print("Error: arag_path is required, either pass it or open an arag first")
             return
         if not os.path.isdir(arag_path):
             print(f"{arag_path} is not a directory")
             return
         package(arag_path)
     elif args.subcommand == 'unpackage':
-        arag_path = args.arag_path
+        arag_path = args.arag_path if args.arag_path is not None else active_arag
         if arag_path is None:
-            print("Error: --arag is required")
+            print("Error: arag_path is required")
             return
         if not os.path.isfile(arag_path):
             print(f"{arag_path} is not a file")
