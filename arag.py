@@ -96,10 +96,12 @@ def main():
     # 'package' subcommand
     package_parser = subparsers.add_parser('package', help="Package an .arag directory into a .arag file")
     package_parser.add_argument('arag_path', nargs='?', help="Path to the .arag directory to package")
+    package_parser.add_argument('--remove-original', action='store_true', help="Remove the original arag directory after packaging")
 
     # 'unpackage' subcommand
     unpackage_parser = subparsers.add_parser('unpackage', help="Unpackage a .arag file into a .arag directory")
     unpackage_parser.add_argument('arag_path', nargs='?', help="Path to the .arag file to unpackage")
+    unpackage_parser.add_argument('--remove-original', action='store_true', help="Remove the original .arag file after unpackaging")
 
     # Parse arguments
     if len(sys.argv) == 2 and sys.argv[1].endswith('.arag') and os.path.isfile(sys.argv[1]):
@@ -130,7 +132,9 @@ def main():
                         continue
                     try:
                         cmd_args = parser.parse_args(command_args)
-                        execute_command(cmd_args, active_arag)
+                        exit_interactive = execute_command(cmd_args, active_arag)
+                        if exit_interactive:
+                            break
                     except SystemExit:
                         print("Invalid command")
                 except KeyboardInterrupt:
@@ -173,6 +177,7 @@ def execute_command(args, active_arag=None):
                 'clean': args.clean
             }
             corpify(arag_path, options)
+        return False
     elif args.subcommand == 'create':
         if args.create_type == 'dir':
             if not os.path.isdir(args.path):
@@ -183,6 +188,7 @@ def execute_command(args, active_arag=None):
             create_spec(args.destination_path)
         elif args.create_type == 'from-spec':
             create_from_spec(args.spec_file)
+        return False
     elif args.subcommand == 'index':
         arag_path = args.arag if args.arag else active_arag
         if arag_path is None:
@@ -202,6 +208,7 @@ def execute_command(args, active_arag=None):
             'endpoint': args.endpoint  # Pass endpoint
         }
         index(arag_path, options)
+        return False
     elif args.subcommand == 'query':
         arag_path = args.arag if args.arag else active_arag
         if arag_path is None:
@@ -212,29 +219,40 @@ def execute_command(args, active_arag=None):
             return
         query(arag_path, args.query_string, args.topk, api_key=args.api_key, 
               get_file=args.get_file, endpoint=args.endpoint)  # Pass endpoint
+        return False
     elif args.subcommand == 'package':
-        # Use provided arag_path or active_arag if in interactive mode and it's a directory
         arag_path = args.arag_path if args.arag_path is not None else active_arag
         if arag_path is None:
             print("Error: arag_path is required, either pass it or open an arag first")
-            return
+            return False
         if not os.path.isdir(arag_path):
             print(f"{arag_path} is not a directory")
-            return
-        package(arag_path)
+            return False
+        success = package(arag_path)
+        if success and args.remove_original:
+            shutil.rmtree(arag_path)
+            if active_arag == arag_path:
+                print("Exiting interactive mode as the active arag directory has been removed.")
+                return True  # Signal to exit interactive mode
+        return False
     elif args.subcommand == 'unpackage':
         arag_path = args.arag_path if args.arag_path is not None else active_arag
         if arag_path is None:
             print("Error: arag_path is required")
-            return
+            return False
         if not os.path.isfile(arag_path):
             print(f"{arag_path} is not a file")
-            return
-        unpackage(arag_path)
+            return False
+        success = unpackage(arag_path)
+        if success and args.remove_original:
+            os.remove(arag_path)
+        return False   
     elif args.subcommand == 'open':
         print("Already in interactive mode, use 'close' to exit")
+        return False
     else:
         print("Unknown subcommand")
+        return False
 
 if __name__ == '__main__':
     main()

@@ -2,3 +2,5 @@
 *.pyc
 apikey.txt
 /build
+/arag.egg-info
+.DS_Store

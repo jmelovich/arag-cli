@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 from .corpus import corpify
 from .index import index
 from .content import add
@@ -31,29 +32,35 @@ def create(arag_path, arag_name):
         print(f"Created arag {arag_name}-arag at {arag_path}")
 
 def create_spec(destination_path):
-    default_spec = {
-        "arag_name": "example",
-        "arag_dest": "./example.arag",
-        "content_include": [],
-        "clean_content": True,
-        "chunk_size": 8192,
-        "index_method": "local",
-        "index_model": "<default>",
-        "api_key": "",
-        "openai_endpoint": "https://api.openai.com/v1",
-        "arag_version": globals.VERSION,
-        "should_package": True
-    }
-
     # if the destination path is a folder, append the default spec file name
     if os.path.isdir(destination_path):
-        destination_path = os.path.join(destination_path, 'arag_spec.arag-json')
+        destination_path = os.path.join(destination_path, 'example_arag.arag-json')
     # if destination_path ends with .json, change it to .arag-json
     elif destination_path.endswith('.json'):
         destination_path = destination_path[:-5] + '.arag-json'
     # if destination_path does not end with .arag-json, append .arag-json
     elif not destination_path.endswith('.arag-json'):
         destination_path += '.arag-json'
+
+    # extract the file name from the destination path, no path or file extension
+    name = os.path.basename(destination_path)
+    # remove the .arag-json extension
+    name = name[:-10]
+
+    default_spec = {
+        "arag_name": name,
+        "arag_dest": "./" + name + ".arag",
+        "content_include": [],
+        "clean_content": True,
+        "chunk_size": 8192,
+        "index_method": "openai",
+        "index_model": "<default>",
+        "api_key": "",
+        "openai_endpoint": "https://api.openai.com/v1",
+        "arag_version": globals.VERSION,
+        "should_package": True,
+        "remove_arag_dir": True
+    }
 
     with open(destination_path, 'w') as f:
         json.dump(default_spec, f, indent=4)
@@ -95,7 +102,10 @@ def create_from_spec(spec_file):
     }
     index(arag_dir, index_options)
     if spec['should_package']:
-        package(arag_dir, dest_path=arag_dest)
+        success = package(arag_dir, dest_path=arag_dest)
+        if success and spec.get('remove_arag_dir', True):  # Default to True if not present
+            shutil.rmtree(arag_dir)
+            print(f"Removed arag directory {arag_dir}")
     else:
         print(f"Arag directory created at {arag_dir}")
 
@@ -110,7 +120,7 @@ def package(arag_path, dest_path=None):
     """
     if not os.path.isdir(arag_path):
         print(f"{arag_path} is not a directory")
-        return
+        return False
     if dest_path is None:
         if arag_path.endswith('-arag'):
             output_path = arag_path[:-5] + '.arag'
@@ -120,17 +130,22 @@ def package(arag_path, dest_path=None):
         output_path = dest_path
     if os.path.exists(output_path):
         print(f"Output path {output_path} already exists")
-        return
-    with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for root, dirs, files in os.walk(arag_path):
-            for file in files:
-                file_path = os.path.join(root, file)
-                arcname = os.path.relpath(file_path, arag_path)
-                if arcname.startswith('content/'):
-                    zipf.write(file_path, arcname)
-                else:
-                    zipf.write(file_path, arcname, compress_type=zipfile.ZIP_STORED)
-    print(f"Packaged {arag_path} to {output_path}")
+        return False
+    try:
+        with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for root, dirs, files in os.walk(arag_path):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    arcname = os.path.relpath(file_path, arag_path)
+                    if arcname.startswith('content/'):
+                        zipf.write(file_path, arcname)
+                    else:
+                        zipf.write(file_path, arcname, compress_type=zipfile.ZIP_STORED)
+        print(f"Packaged {arag_path} to {output_path}")
+        return True
+    except Exception as e:
+        print(f"Error packaging: {e}")
+        return False
 
 def unpackage(packaged_arag_path):
     """
@@ -141,17 +156,20 @@ def unpackage(packaged_arag_path):
     """
     if not os.path.isfile(packaged_arag_path):
         print(f"{packaged_arag_path} is not a file")
-        return
-    # Replace '.arag' with '-arag' for the output directory
+        return False
     if packaged_arag_path.endswith('.arag'):
         output_dir = packaged_arag_path[:-5] + '-arag'
     else:
-        output_dir = packaged_arag_path + '-arag'  # Fallback for unexpected naming
+        output_dir = packaged_arag_path + '-arag'
     if os.path.exists(output_dir):
         print(f"Output directory {output_dir} already exists")
-        return
-    with zipfile.ZipFile(packaged_arag_path, 'r') as zipf:
-        zipf.extractall(output_dir)
-    print(f"Unpackaged {packaged_arag_path} to {output_dir}")
-
+        return False
+    try:
+        with zipfile.ZipFile(packaged_arag_path, 'r') as zipf:
+            zipf.extractall(output_dir)
+        print(f"Unpackaged {packaged_arag_path} to {output_dir}")
+        return True
+    except Exception as e:
+        print(f"Error unpackaging: {e}")
+        return False
 
