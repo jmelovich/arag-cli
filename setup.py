@@ -11,7 +11,9 @@ setup(
     install_requires=[
         'apsw',     # Required for SQLite with custom VFS
         'numpy',    # Used in retrieval.py
-        'openai'    # Dependency for OpenAI embeddings
+        'openai',    # Dependency for OpenAI embeddings
+        'pypdf',    # Required for PDF parsing
+        'Spire.Doc'    # Required for DOCX parsing
     ],
     extras_require={
         'local_embeddings': ['sentence-transformers']  # Optional dependency
